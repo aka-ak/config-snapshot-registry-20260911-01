@@ -28,6 +28,34 @@ func TestPutSnapshotIsIdempotentAndTracksLatest(t *testing.T) {
 	}
 }
 
+func TestAssessImpactDiffsAndListsDependents(t *testing.T) {
+	svc := New(store.NewMemory())
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for _, snapshot := range []domain.Snapshot{
+		{ID: "snap-1", Service: "payments", Environment: "prod", CapturedAt: base, Values: map[string]any{"timeout": 3}, Dependencies: []string{"auth"}},
+		{ID: "snap-2", Service: "payments", Environment: "prod", CapturedAt: base.Add(time.Hour), Values: map[string]any{"timeout": 5}, Dependencies: []string{"auth"}},
+		{ID: "snap-3", Service: "auth", Environment: "prod", CapturedAt: base, Values: map[string]any{"issuer": "internal"}},
+		{ID: "snap-4", Service: "checkout", Environment: "prod", CapturedAt: base, Values: map[string]any{}, Dependencies: []string{"payments"}},
+	} {
+		if _, err := svc.PutSnapshot(context.Background(), snapshot); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assessment, err := svc.AssessImpact(context.Background(), "payments", "prod", "snap-1", "snap-2")
+	if err != nil {
+		t.Fatalf("assess impact: %v", err)
+	}
+	if len(assessment.Changes) != 1 || assessment.Changes[0].Path != "timeout" {
+		t.Fatalf("changes = %#v, want one timeout change", assessment.Changes)
+	}
+	if len(assessment.Affected) != 1 || assessment.Affected[0].Service != "checkout" {
+		t.Fatalf("affected = %#v, want checkout", assessment.Affected)
+	}
+	if _, err := svc.AssessImpact(context.Background(), "payments", "staging", "snap-1", "snap-2"); !errors.Is(err, domain.ErrScopeMismatch) {
+		t.Fatalf("got err %v, want scope mismatch", err)
+	}
+}
+
 func TestDiffUsesStoredSnapshots(t *testing.T) {
 	svc := New(store.NewMemory())
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

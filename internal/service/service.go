@@ -10,6 +10,7 @@ import (
 
 	"example.com/config-snapshot-registry/internal/domain"
 	"example.com/config-snapshot-registry/internal/engine"
+	"example.com/config-snapshot-registry/internal/impact"
 	"example.com/config-snapshot-registry/internal/store"
 )
 
@@ -115,6 +116,14 @@ func (s *Service) Diff(ctx context.Context, fromID, toID string) (Diff, error) {
 		return Diff{}, fmt.Errorf("to: %w", domain.ErrSnapshotNotFound)
 	}
 	return Diff{From: from, To: to, Changes: engine.Compare(from.Snapshot.Values, to.Snapshot.Values)}, nil
+}
+
+func (s *Service) AssessImpact(ctx context.Context, serviceName, environment, fromID, toID string) (impact.Assessment, error) {
+	state, err := s.store.Read(ctx)
+	if err != nil {
+		return impact.Assessment{}, err
+	}
+	return impact.Assess(state, serviceName, environment, fromID, toID)
 }
 
 func (s *Service) Audit(ctx context.Context) ([]domain.AuditEvent, error) {

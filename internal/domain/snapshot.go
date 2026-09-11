@@ -8,9 +8,11 @@ import (
 )
 
 var (
-	ErrInvalidSnapshot  = errors.New("invalid snapshot")
-	ErrSnapshotNotFound = errors.New("snapshot not found")
-	ErrSnapshotConflict = errors.New("snapshot id already contains different data")
+	ErrInvalidSnapshot        = errors.New("invalid snapshot")
+	ErrSnapshotNotFound       = errors.New("snapshot not found")
+	ErrSnapshotConflict       = errors.New("snapshot id already contains different data")
+	ErrScopeMismatch          = errors.New("snapshot scope mismatch")
+	ErrIncompleteDependencies = errors.New("dependency information incomplete")
 )
 
 type Snapshot struct {

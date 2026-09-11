@@ -34,6 +34,8 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 		h.getSnapshot(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/v1/diffs":
 		h.diff(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == "/v1/impact":
+		h.impact(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/v1/audit":
 		h.audit(w, r)
 	default:
@@ -98,6 +100,20 @@ func (h *Handler) diff(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (h *Handler) impact(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	if query.Get("service") == "" || query.Get("environment") == "" || query.Get("from") == "" || query.Get("to") == "" {
+		writeError(w, http.StatusBadRequest, "service, environment, from and to are required")
+		return
+	}
+	result, err := h.service.AssessImpact(r.Context(), query.Get("service"), query.Get("environment"), query.Get("from"), query.Get("to"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (h *Handler) audit(w http.ResponseWriter, r *http.Request) {
 	events, err := h.service.Audit(r.Context())
 	if err != nil {
@@ -128,6 +144,10 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, domain.ErrSnapshotNotFound):
 		writeError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, domain.ErrScopeMismatch):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, domain.ErrIncompleteDependencies):
+		writeError(w, http.StatusConflict, err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal server error")
 	}
